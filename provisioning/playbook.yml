@@ -1,0 +1,64 @@
+- hosts: all
+  become: true
+  vars:
+    application_name: test
+    application_user: santiago
+  
+  tasks:
+    
+    - name: Install common packages
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - nginx
+        - php
+        - php-fpm
+      when: ansible_os_family == "Debian"
+
+    - name: Delete default nginx config
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+    
+    - name: Delete default nginx config sites
+      file:
+        path: /etc/nginx/sites-available/default
+        state: absent
+
+    - name: Source nginx config
+      template:
+        src: test.conf.j2
+        dest: /etc/nginx/sites-available/{{ application_name }}.conf
+    
+    - name: Create nginx symlink
+      file:
+        src: /etc/nginx/sites-available/{{ application_name }}.conf
+        dest: /etc/nginx/sites-enabled/{{ application_name }}.conf
+        state: link
+
+    - name: Create web root directory
+      file:
+        path: /var/srv/test
+        state: directory
+        mode: '0755'
+        
+    - name: Add local domain to hosts file
+      lineinfile:
+        path: /etc/hosts
+        line: "127.0.0.1 {{ application_name }}.local"
+        state: present
+        regexp: '^127\.0\.0\.1\s+{{ application_name }}\.local'
+
+    - name: Restart nginx
+      systemd:
+        name: nginx.service
+        state: restarted
+
+    - name: Copy index.php to web root
+      copy:
+        src: ../src/index.php
+        dest: /var/srv/test/index.php
+        mode: '0644'
+
+    
